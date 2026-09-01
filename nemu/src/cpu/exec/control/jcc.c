@@ -39,3 +39,28 @@ make_helper(jcc_l) {
 	print_asm("jcc 0x%x", eip + 5 + displacement);
 	return 5;
 }
+
+make_helper(setcc) {
+	int len = decode_rm_b(eip + 1);
+	write_operand_b(op_src, condition_passed(ops_decoded.opcode));
+	print_asm("setcc %s", op_src->str);
+	return len + 1;
+}
+
+make_helper(cmovcc) {
+	int len;
+	if(ops_decoded.is_operand_size_16) {
+		len = decode_rm2r_w(eip + 1);
+		if(condition_passed(ops_decoded.opcode)) {
+			write_operand_w(op_dest, op_src->val);
+		}
+	}
+	else {
+		len = decode_rm2r_l(eip + 1);
+		if(condition_passed(ops_decoded.opcode)) {
+			write_operand_l(op_dest, op_src->val);
+		}
+	}
+	print_asm("cmovcc %s,%s", op_src->str, op_dest->str);
+	return len + 1;
+}

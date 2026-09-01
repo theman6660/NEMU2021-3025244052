@@ -1,8 +1,8 @@
 #include "FLOAT.h"
+#include <stdint.h>
 
 FLOAT F_mul_F(FLOAT a, FLOAT b) {
-	nemu_assert(0);
-	return 0;
+	return (FLOAT)(((long long)a * b) / (1 << 16));
 }
 
 FLOAT F_div_F(FLOAT a, FLOAT b) {
@@ -24,8 +24,17 @@ FLOAT F_div_F(FLOAT a, FLOAT b) {
 	 * out another way to perform the division.
 	 */
 
-	nemu_assert(0);
-	return 0;
+	int quotient, remainder;
+	nemu_assert(b != 0);
+
+	asm volatile (
+		"idivl %2"
+		: "=a"(quotient), "=d"(remainder)
+		: "rm"(b), "a"((uint32_t)a << 16), "d"(a >> 16)
+		: "cc"
+	);
+	(void)remainder;
+	return quotient;
 }
 
 FLOAT f2F(float a) {
@@ -39,13 +48,40 @@ FLOAT f2F(float a) {
 	 * performing arithmetic operations on it directly?
 	 */
 
-	nemu_assert(0);
-	return 0;
+	union {
+		float floating;
+		uint32_t bits;
+	} value;
+	uint32_t mantissa;
+	uint32_t exponent;
+	uint64_t magnitude;
+	int shift;
+
+	value.floating = a;
+	exponent = (value.bits >> 23) & 0xff;
+	if(exponent == 0) {
+		return 0;
+	}
+	nemu_assert(exponent != 0xff);
+
+	mantissa = (value.bits & 0x7fffff) | 0x800000;
+	shift = (int)exponent - 134;
+	if(shift >= 0) {
+		magnitude = (uint64_t)mantissa << shift;
+	}
+	else {
+		magnitude = mantissa >> (-shift);
+	}
+
+	nemu_assert(magnitude <= 0x80000000ull);
+	if(value.bits >> 31) {
+		return -(FLOAT)magnitude;
+	}
+	return (FLOAT)magnitude;
 }
 
 FLOAT Fabs(FLOAT a) {
-	nemu_assert(0);
-	return 0;
+	return a < 0 ? -a : a;
 }
 
 /* Functions below are already implemented */

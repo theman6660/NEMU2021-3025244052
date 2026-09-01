@@ -4,5 +4,7 @@
 bool condition_passed(uint8_t condition);
 make_helper(jcc_b);
 make_helper(jcc_l);
+make_helper(setcc);
+make_helper(cmovcc);
 
 #endif

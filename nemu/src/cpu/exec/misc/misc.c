@@ -23,3 +23,29 @@ make_helper(lea) {
 	print_asm("leal %s,%%%s", op_src->str, regsl[m.reg]);
 	return 1 + len;
 }
+
+make_helper(leave) {
+	cpu.esp = cpu.ebp;
+	cpu.ebp = swaddr_read(cpu.esp, 4);
+	cpu.esp += 4;
+	print_asm("leave");
+	return 1;
+}
+
+make_helper(sahf) {
+	uint8_t value = reg_b(R_AH);
+	cpu.eflags.SF = (value >> 7) & 1;
+	cpu.eflags.ZF = (value >> 6) & 1;
+	cpu.eflags.AF = (value >> 4) & 1;
+	cpu.eflags.PF = (value >> 2) & 1;
+	cpu.eflags.CF = value & 1;
+	print_asm("sahf");
+	return 1;
+}
+
+make_helper(lahf) {
+	reg_b(R_AH) = (cpu.eflags.SF << 7) | (cpu.eflags.ZF << 6) |
+			(cpu.eflags.AF << 4) | (cpu.eflags.PF << 2) | 0x2 | cpu.eflags.CF;
+	print_asm("lahf");
+	return 1;
+}

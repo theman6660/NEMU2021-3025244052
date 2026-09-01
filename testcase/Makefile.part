@@ -20,10 +20,10 @@ $(testcase_OBJ_DIR)/mov: % : %.o
 # point instructions. gcc 6 will generate floating point instructions
 # for passing floating point arguments with -O0.
 $(testcase_OBJ_DIR)/integral.o: testcase/src/integral.c
-	$(call make_command, $(CC), $(testcase_CFLAGS) -O2, cc $@, $<)
+	$(call make_command, $(CC), $(testcase_CFLAGS) -O2 -msoft-float, cc $@, $<)
 
 $(testcase_OBJ_DIR)/quadratic-eq.o: testcase/src/quadratic-eq.c
-	$(call make_command, $(CC), $(testcase_CFLAGS) -O2, cc $@, $<)
+	$(call make_command, $(CC), $(testcase_CFLAGS) -O2 -msoft-float, cc $@, $<)
 
 
 # These rules are used to generate print-FLOAT program run under

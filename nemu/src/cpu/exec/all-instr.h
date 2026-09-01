@@ -31,12 +31,14 @@
 #include "logic/shl.h"
 #include "logic/shr.h"
 #include "logic/shrd.h"
+#include "logic/shld.h"
 #include "logic/test.h"
 
 #include "string/rep.h"
 #include "string/scas.h"
 #include "string/stos.h"
 #include "string/movs.h"
+#include "string/lods.h"
 
 #include "misc/misc.h"
 

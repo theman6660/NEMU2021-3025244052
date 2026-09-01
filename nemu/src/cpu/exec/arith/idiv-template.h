@@ -8,7 +8,7 @@ static void do_execute() {
 #if DATA_BYTE == 1
 	a = (int16_t)reg_w(R_EAX);
 #else
-	a = ((int64_t)REG(R_EDX) << (DATA_BYTE * 8)) | (int64_t)REG(R_EAX);
+	a = ((int64_t)(int32_t)REG(R_EDX) << (DATA_BYTE * 8)) | REG(R_EAX);
 #endif
 	REG(R_EAX) = a / b;
 	REG(R_EDX) = a % b;
