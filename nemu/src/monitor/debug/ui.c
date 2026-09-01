@@ -1,5 +1,6 @@
 #include "monitor/monitor.h"
 #include "monitor/expr.h"
+#include "monitor/elf.h"
 #include "monitor/watchpoint.h"
 #include "nemu.h"
 
@@ -208,6 +209,15 @@ static int cmd_d(char *args) {
 	return 0;
 }
 
+static int cmd_bt(char *args) {
+	if(args != NULL && *skip_spaces(args) != '\0') {
+		printf("Usage: bt\n");
+		return 0;
+	}
+	print_backtrace();
+	return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -223,7 +233,8 @@ static struct {
 	{ "x", "Examine N four-byte words starting at EXPR", cmd_x },
 	{ "p", "Evaluate expression EXPR", cmd_p },
 	{ "w", "Set a watchpoint for expression EXPR", cmd_w },
-	{ "d", "Delete watchpoint N", cmd_d }
+	{ "d", "Delete watchpoint N", cmd_d },
+	{ "bt", "Print the current stack backtrace", cmd_bt }
 };
 
 #define NR_CMD (sizeof(cmd_table) / sizeof(cmd_table[0]))

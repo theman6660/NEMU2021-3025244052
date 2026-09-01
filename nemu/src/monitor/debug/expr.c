@@ -1,4 +1,5 @@
 #include "nemu.h"
+#include "monitor/elf.h"
 
 /* We use the POSIX regex functions to process regular expressions.
  * Type 'man regex' for more information about POSIX regex functions.
@@ -14,6 +15,7 @@ enum {
 	TK_DEC,
 	TK_HEX,
 	TK_REG,
+	TK_SYMBOL,
 	TK_EQ,
 	TK_NEQ,
 	TK_AND,
@@ -30,6 +32,7 @@ static struct rule {
 	{"0[xX][0-9a-fA-F]+", TK_HEX},
 	{"[0-9]+", TK_DEC},
 	{"\\$[a-zA-Z][a-zA-Z0-9]*", TK_REG},
+	{"[a-zA-Z_][a-zA-Z0-9_]*", TK_SYMBOL},
 	{"==", TK_EQ},
 	{"!=", TK_NEQ},
 	{"&&", TK_AND},
@@ -71,7 +74,8 @@ static Token tokens[NR_TOKEN];
 static int nr_token;
 
 static bool is_value_token(int type) {
-	return type == TK_DEC || type == TK_HEX || type == TK_REG || type == ')';
+	return type == TK_DEC || type == TK_HEX || type == TK_REG ||
+		type == TK_SYMBOL || type == ')';
 }
 
 static bool make_token(char *e) {
@@ -101,7 +105,7 @@ static bool make_token(char *e) {
 					tokens[nr_token].str[0] = '\0';
 
 					if(rules[i].token_type == TK_DEC || rules[i].token_type == TK_HEX ||
-							rules[i].token_type == TK_REG) {
+							rules[i].token_type == TK_REG || rules[i].token_type == TK_SYMBOL) {
 						if(substr_len >= (int)sizeof(tokens[nr_token].str)) {
 							printf("Token is too long at position %d.\n", position - substr_len);
 							return false;
@@ -269,6 +273,14 @@ static uint32_t eval(int p, int q, bool *success) {
 		if(tokens[p].type == TK_REG) {
 			uint32_t value = 0;
 			if(!register_value(tokens[p].str, &value)) {
+				*success = false;
+			}
+			return value;
+		}
+		if(tokens[p].type == TK_SYMBOL) {
+			uint32_t value = 0;
+			if(!lookup_symbol(tokens[p].str, &value)) {
+				printf("Unknown symbol '%s'.\n", tokens[p].str);
 				*success = false;
 			}
 			return value;

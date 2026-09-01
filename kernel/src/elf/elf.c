@@ -18,7 +18,7 @@ uint32_t get_ucr3();
 
 uint32_t loader() {
 	Elf32_Ehdr *elf;
-	Elf32_Phdr *ph = NULL;
+	Elf32_Phdr ph;
 
 	uint8_t buf[4096];
 
@@ -30,31 +30,60 @@ uint32_t loader() {
 
 	elf = (void*)buf;
 
-	/* TODO: fix the magic number with the correct one */
-	const uint32_t elf_magic = 0xBadC0de;
-	uint32_t *p_magic = (void *)buf;
-	nemu_assert(*p_magic == elf_magic);
+	/* Validate the ELF header before using offsets from the image. */
+	nemu_assert(elf->e_ident[EI_MAG0] == ELFMAG0 &&
+			elf->e_ident[EI_MAG1] == ELFMAG1 &&
+			elf->e_ident[EI_MAG2] == ELFMAG2 &&
+			elf->e_ident[EI_MAG3] == ELFMAG3);
+	nemu_assert(elf->e_ident[EI_CLASS] == ELFCLASS32);
+	nemu_assert(elf->e_ident[EI_DATA] == ELFDATA2LSB);
+	nemu_assert(elf->e_type == ET_EXEC && elf->e_machine == EM_386);
+	nemu_assert(elf->e_phentsize == sizeof(Elf32_Phdr));
+	nemu_assert(elf->e_phnum != 0);
 
 	/* Load each program segment */
-	panic("please implement me");
-	for(; true; ) {
-		/* Scan the program header table, load each segment into memory */
-		if(ph->p_type == PT_LOAD) {
+	for(uint16_t i = 0; i < elf->e_phnum; i ++) {
+		uint32_t ph_offset = elf->e_phoff + i * elf->e_phentsize;
 
-			/* TODO: read the content of the segment from the ELF file 
-			 * to the memory region [VirtAddr, VirtAddr + FileSiz)
-			 */
-			 
-			 
-			/* TODO: zero the memory region 
-			 * [VirtAddr + FileSiz, VirtAddr + MemSiz)
-			 */
+#ifdef HAS_DEVICE
+		ide_read((uint8_t *)&ph, ph_offset, sizeof(ph));
+#else
+		ramdisk_read((uint8_t *)&ph, ph_offset, sizeof(ph));
+#endif
+
+		/* Scan the program header table, load each segment into memory */
+		if(ph.p_type == PT_LOAD) {
+			uint8_t segment_buf[4096];
+			uint32_t loaded = 0;
+			uint32_t destination = ph.p_vaddr;
+
+			nemu_assert(ph.p_filesz <= ph.p_memsz);
+			nemu_assert(ph.p_vaddr + ph.p_memsz >= ph.p_vaddr);
+
+			while(loaded < ph.p_filesz) {
+				uint32_t chunk = ph.p_filesz - loaded;
+				if(chunk > sizeof(segment_buf)) {
+					chunk = sizeof(segment_buf);
+				}
+
+#ifdef HAS_DEVICE
+				ide_read(segment_buf, ph.p_offset + loaded, chunk);
+#else
+				ramdisk_read(segment_buf, ph.p_offset + loaded, chunk);
+#endif
+				memcpy(pa_to_va(destination + loaded), segment_buf, chunk);
+				loaded += chunk;
+			}
+
+			/* The loader must zero the BSS tail of every loadable segment. */
+			memset(pa_to_va(destination + ph.p_filesz), 0,
+					ph.p_memsz - ph.p_filesz);
 
 
 #ifdef IA32_PAGE
 			/* Record the program break for future use. */
 			extern uint32_t cur_brk, max_brk;
-			uint32_t new_brk = ph->p_vaddr + ph->p_memsz - 1;
+			uint32_t new_brk = ph.p_vaddr + ph.p_memsz;
 			if(cur_brk < new_brk) { max_brk = cur_brk = new_brk; }
 #endif
 		}

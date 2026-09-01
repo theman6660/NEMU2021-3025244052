@@ -7,7 +7,7 @@ static void do_execute () {
 	OPERAND_W(op_src, result);
 
         update_eflags_pf_zf_sf((DATA_TYPE_S)result);
-	cpu.eflags.OF = (result == 0x7fffffff);
+	cpu.eflags.OF = (result == (((DATA_TYPE)1 << (DATA_BYTE * 8 - 1)) - 1));
 
 	print_asm_template1();
 }
