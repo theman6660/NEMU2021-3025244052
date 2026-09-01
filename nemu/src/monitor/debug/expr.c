@@ -17,6 +17,7 @@ enum {
 	TK_EQ,
 	TK_NEQ,
 	TK_AND,
+	TK_OR,
 	TK_DEREF,
 	TK_NEG
 };
@@ -32,6 +33,7 @@ static struct rule {
 	{"==", TK_EQ},
 	{"!=", TK_NEQ},
 	{"&&", TK_AND},
+	{"\\|\\|", TK_OR},
 	{"\\+", '+'},
 	{"-", '-'},
 	{"\\*", '*'},
@@ -197,13 +199,14 @@ static bool is_wrapped_by_parentheses(int p, int q, bool *success) {
 
 static int precedence(int type) {
 	switch(type) {
-		case TK_AND: return 1;
+		case TK_OR: return 1;
+		case TK_AND: return 2;
 		case TK_EQ:
-		case TK_NEQ: return 2;
+		case TK_NEQ: return 3;
 		case '+':
-		case '-': return 3;
+		case '-': return 4;
 		case '*':
-		case '/': return 4;
+		case '/': return 5;
 		default: return 0;
 	}
 }
@@ -296,6 +299,9 @@ static uint32_t eval(int p, int q, bool *success) {
 		if(tokens[op].type == TK_AND && left == 0) {
 			return 0;
 		}
+		if(tokens[op].type == TK_OR && left != 0) {
+			return 1;
+		}
 
 		uint32_t right = eval(op + 1, q, success);
 		if(!*success) {
@@ -316,6 +322,7 @@ static uint32_t eval(int p, int q, bool *success) {
 			case TK_EQ: return left == right;
 			case TK_NEQ: return left != right;
 			case TK_AND: return left && right;
+			case TK_OR: return left || right;
 			default:
 				*success = false;
 				return 0;

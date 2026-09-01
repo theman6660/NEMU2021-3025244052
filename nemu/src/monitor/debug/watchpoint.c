@@ -1,6 +1,8 @@
 #include "monitor/watchpoint.h"
 #include "monitor/expr.h"
 
+#include <assert.h>
+
 #define NR_WP 32
 
 static WP wp_pool[NR_WP];
@@ -20,8 +22,7 @@ void init_wp_pool() {
 
 WP *new_wp(void) {
 	if(free_ == NULL) {
-		printf("No free watchpoint is available.\n");
-		return NULL;
+		assert(0);
 	}
 
 	WP *wp = free_;

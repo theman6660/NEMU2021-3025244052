@@ -50,8 +50,11 @@ void cpu_exec(volatile uint32_t n) {
 	setjmp(jbuf);
 
 	for(; n > 0; n --) {
+		/* Address of the instruction that is about to execute.
+		 * Watchpoint hints must report this eip, not the next one. */
+		swaddr_t instr_eip = cpu.eip;
+
 #ifdef DEBUG
-		swaddr_t eip_temp = cpu.eip;
 		if((n & 0xffff) == 0) {
 			/* Output some dots while executing the program. */
 			fputc('.', stderr);
@@ -65,7 +68,7 @@ void cpu_exec(volatile uint32_t n) {
 		cpu.eip += instr_len;
 
 #ifdef DEBUG
-		print_bin_instr(eip_temp, instr_len);
+		print_bin_instr(instr_eip, instr_len);
 		strcat(asm_buf, assembly);
 		Log_write("%s\n", asm_buf);
 		if(n_temp < MAX_INSTR_TO_PRINT) {
@@ -73,7 +76,7 @@ void cpu_exec(volatile uint32_t n) {
 		}
 #endif
 
-		if(nemu_state == RUNNING && check_watchpoints(cpu.eip)) {
+		if(nemu_state == RUNNING && check_watchpoints(instr_eip)) {
 			nemu_state = STOP;
 		}
 
