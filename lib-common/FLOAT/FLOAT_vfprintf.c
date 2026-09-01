@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+#include <sys/mman.h>
 #include "FLOAT.h"
 
 extern char _vfprintf_internal;
+extern char _ppfs_setargs;
 extern char _fpmaxtostr;
 extern int __stdio_fwrite(char *buf, int len, FILE *stream);
 
@@ -16,8 +19,34 @@ __attribute__((used)) static int format_FLOAT(FILE *stream, FLOAT f) {
 	 */
 
 	char buf[80];
-	int len = sprintf(buf, "0x%08x", f);
+	int64_t signed_value = f;
+	uint32_t magnitude = signed_value < 0 ?
+			(uint32_t)(-signed_value) : (uint32_t)signed_value;
+	uint32_t integer = magnitude >> 16;
+	uint32_t fraction = (uint32_t)(((uint64_t)(magnitude & 0xffff) * 1000000) >> 16);
+	int len;
+
+	if(f < 0) {
+		len = sprintf(buf, "-%u.%06u", integer, fraction);
+	}
+	else {
+		len = sprintf(buf, "%u.%06u", integer, fraction);
+	}
 	return __stdio_fwrite(buf, len, stream);
+}
+
+static int make_code_writable(void *address, uint32_t length) {
+	const uintptr_t page_mask = 4095;
+	uintptr_t start = (uintptr_t)address & ~page_mask;
+	uintptr_t end = ((uintptr_t)address + length + page_mask) & ~page_mask;
+
+	/* NEMU's entire 128 MB physical address space is writable. Linux links
+	 * this test at 0x08048000 and protects its text pages. */
+	if((uintptr_t)address < 0x08000000) {
+		return 1;
+	}
+	return mprotect((void *)start, end - start,
+			PROT_READ | PROT_WRITE | PROT_EXEC) == 0;
 }
 
 static void modify_vfprintf() {
@@ -64,6 +93,36 @@ static void modify_vfprintf() {
 	} else if (ppfs->conv_num <= CONV_S) {  /* wide char or string */
 #endif
 
+	uint8_t *code = (uint8_t *)&_vfprintf_internal;
+	uint8_t *call = code + 0x306;
+	int32_t relative;
+
+	if(!make_code_writable(code, 0x30b)) {
+		return;
+	}
+
+	/* These offsets belong to the fixed uClibc object supplied with the
+	 * assignment. Refuse to patch an unexpected binary layout. */
+	if(code[0x2e4] != 0xdb || code[0x2e5] != 0x2a ||
+			code[0x2e8] != 0xdd || code[0x2e9] != 0x02 ||
+			code[0x2f9] != 0x83 || code[0x2fa] != 0xec ||
+			code[0x2fb] != 0x0c || code[0x2fc] != 0xdb ||
+			code[0x2fd] != 0x3c || code[0x2fe] != 0x24 ||
+			call[0] != 0xe8) {
+		return;
+	}
+
+	/* Suppress fldt/fldl. Keep 24 bytes of alignment/padding, push the
+	 * raw FLOAT value, then redirect the existing call instruction. */
+	code[0x2e4] = code[0x2e5] = 0x90;
+	code[0x2e8] = code[0x2e9] = 0x90;
+	code[0x2fb] = 0x08;
+	code[0x2fc] = 0xff;
+	code[0x2fd] = 0x32;
+	code[0x2fe] = 0x90;
+
+	relative = (int32_t)((uint8_t *)format_FLOAT - (call + 5));
+	memcpy(call + 1, &relative, sizeof(relative));
 }
 
 static void modify_ppfs_setargs() {
@@ -165,6 +224,20 @@ static void modify_ppfs_setargs() {
 	}
 #endif
 
+	uint8_t *code = (uint8_t *)&_ppfs_setargs;
+
+	if(!make_code_writable(code, 0xa6)) {
+		return;
+	}
+
+	/* PA_DOUBLE starts with `lea 8(%edx), %ebx'. Redirect it to the
+	 * PA_INT|PA_FLAG_LONG_LONG branch at offset 0xa3 instead. */
+	if(code[0x71] != 0x8d || code[0x72] != 0x5a || code[0x73] != 0x08) {
+		return;
+	}
+	code[0x71] = 0xeb;
+	code[0x72] = 0x30;
+	code[0x73] = 0x90;
 }
 
 void init_FLOAT_vfprintf() {
